@@ -106,4 +106,4 @@ contract MultiSig{
 
         return address(this).balance;
     }   
-}
+} .......
