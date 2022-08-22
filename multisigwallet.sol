@@ -9,6 +9,7 @@ contract MultiSig{
     uint limit;
     uint depositId = 0;
     uint withdrawalId = 0;
+    uint transferId =0;
 
     constructor (){
 
@@ -34,10 +35,24 @@ contract MultiSig{
 
     mapping(address=>uint) balance; //key-value pair
 
+    struct Transfer{
+
+        address sender;
+        address receiver;
+        uint amount;
+        uint id;
+        uint approvals;
+        uint timeOfTransaction;
+
+    }
+
+    Transfer[] transferRequest;//array to store transfer requests
+
     event walletOwnerAdded(address addedBy, address ownerAdded,uint timeOfTransaction); // logs of transactions
     event walletOwnerRemoved(address removedBy, address ownerRemoved,uint timeOfTransaction);
     event fundsDeposited(address sender, uint amount,uint depositId, uint timeOfTransaction);
     event fundsWithdrawed(address sender, uint amount,uint withdrawlId, uint timeOfTransaction);
+    event transferCreated(address sender,address receiver,uint amount,uint transferId,uint approvals,uint timeOfTransaction);
 
     function getWalletOwners() public view returns(address[] memory){ //view keyword makes the function read only
     
@@ -106,4 +121,18 @@ contract MultiSig{
 
         return address(this).balance;
     }   
+
+    function createTrnsferRequest(address receiver, uint amount) public onlyOwners{
+
+    require(balance[msg.sender]>=amount,"Insufficient funds.");
+    require(msg.sender!=receiver,"Can not self transfer.") //#3 security check to not send amount to oneself 
+    
+    balance[msg.sender]-=amount;
+    transferRequest.push(Transfer(msg.sender,receiver,amount,transferId,0,block.timestamp));
+    transferId++;
+    emit transferCreated(msg.sender,receiver,amount,transferId,0,block.timestamp);
+
+    }
+
+
 }
