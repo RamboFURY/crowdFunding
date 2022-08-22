@@ -80,7 +80,7 @@ contract MultiSig{
 
     function deposit() public payable onlyOwners{
 
-        require(balance[msg.sender]>0,"Can not deposit a value 0 or less.");
+        require(balance[msg.sender]>=0,"Can not deposit a value 0 or less.");
         balance[msg.sender]=msg.value;
         emit fundsDeposited(msg.sender,msg.value,depositId,block.timestamp);
         depositId++;
