@@ -2,7 +2,7 @@
 
 pragma solidity 0.8.7; //default version of solidity selected as in remix ide
 
-contract MultiSig{
+contract MultiSig {
 
     address mainOwner;
     address[] walletOwners; //array to append the wallet owners
@@ -10,20 +10,29 @@ contract MultiSig{
     uint depositId = 0;
     uint withdrawalId = 0;
     uint transferId =0;
+    string[] tokenList;
 
-    constructor (){
+    constructor() {
 
         mainOwner = msg.sender; //contract creator
         walletOwners.push(mainOwner); //the deployer is pushed to owners array at first 
         limit = walletOwners.length - 1;
-
+        tokenList.push("ETH");
     }
 
     //key-value pairs
-    mapping(address=>uint) balance;
-    mapping(address=>mapping(uint=>bool))approvals;
+    mapping(address=>mapping(string=>uint)) balance;
+    mapping(address=>mapping(uint=>bool)) approvals;
+    mapping(string=>Token) tokenMapping;
 
-    struct Transfer{
+    struct Token {
+
+        string symbol;
+        address tokenAddress;
+
+    }
+
+    struct Transfer {
 
         address sender;
         address payable receiver;
@@ -46,7 +55,7 @@ contract MultiSig{
     event transferApproved(address sender,address receiver,uint amount,uint transferid,uint approvals,uint timeOfTransaction);
     event fundsTransferred(address sender,address receiver,uint amount,uint transferid,uint approvals,uint timeOfTransaction);
 
-    modifier onlyOwners(){ //modifier is used to reduce recurring code snippets
+    modifier onlyOwners() { //modifier is used to reduce recurring code snippets
 
         bool isOwner=false;
         for(uint i=0; i<walletOwners.length; i++){ //#1 security issue - only existing owners should call this function not anyone from outside
@@ -60,13 +69,7 @@ contract MultiSig{
         _;
     }
 
-    function getWalletOwners() public view returns(address[] memory){ //view keyword makes the function read only
-    
-    return walletOwners;
-
-    }
-
-    function addWalletOwner(address owner) public onlyOwners{
+    function addWalletOwner(address owner) public onlyOwners {
 
         for(uint i=0; i<walletOwners.length; i++) //#2 security issue - remove duplicacy of owners
         {
@@ -100,7 +103,7 @@ contract MultiSig{
         emit walletOwnerRemoved(msg.sender,owner,block.timestamp);
     }
 
-    function deposit() public payable onlyOwners{
+    function deposit() public payable onlyOwners {
 
         require(balance[msg.sender]>=0,"Can not deposit a value 0 or less.");
         balance[msg.sender]=msg.value;
@@ -109,7 +112,7 @@ contract MultiSig{
         
     }
 
-    function withdraw(uint amount) public onlyOwners{
+    function withdraw(uint amount) public onlyOwners {
 
         require(balance[msg.sender]>=amount);
         balance[msg.sender]-=amount;
@@ -119,7 +122,7 @@ contract MultiSig{
 
     } 
 
-    function createTransferRequest(address payable receiver, uint amount) public onlyOwners{
+    function createTransferRequest(address payable receiver, uint amount) public onlyOwners {
 
     require(balance[msg.sender]>=amount,"Insufficient funds.");
     for(uint i=0; i<walletOwners.length; i++){
@@ -135,7 +138,7 @@ contract MultiSig{
 
     }
 
-    function cancelTransferRequest(uint id) public onlyOwners{
+    function cancelTransferRequest(uint id) public onlyOwners {
 
         bool hasBeenFound=false;
         uint transferIndex=0;
@@ -205,19 +208,25 @@ contract MultiSig{
 
     }
 
-    function getApprovals(uint id) public view returns(bool){
+    function getWalletOwners() public view returns(address[] memory) { //view keyword makes the function read only
+    
+    return walletOwners;
+
+    }
+
+    function getApprovals(uint id) public view returns(bool) {
 
         return approvals[msg.sender][id];
 
     }
 
-    function getTransferRequests() public view returns(Transfer[] memory){
+    function getTransferRequests() public view returns(Transfer[] memory) {
 
         return transferRequests;
 
     }
 
-    function getBalance() public view returns(uint){
+    function getBalance() public view returns(uint) {
 
         return balance[msg.sender];
     }
@@ -228,7 +237,7 @@ contract MultiSig{
 
     }
 
-    function getContractBalance() public view returns(uint){
+    function getContractBalance() public view returns(uint) {
 
         return address(this).balance;
     } 
