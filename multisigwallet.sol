@@ -34,7 +34,7 @@ contract MultiSig{
 
     }
 
-    Transfer[] transferRequests;//array to store transfer requests
+    Transfer[] transferRequests;//array to store transfer requests and to query them when needed
 
     // logs of transactions
     event walletOwnerAdded(address addedBy, address ownerAdded,uint timeOfTransaction);
@@ -124,7 +124,7 @@ contract MultiSig{
     require(balance[msg.sender]>=amount,"Insufficient funds.");
     for(uint i=0; i<walletOwners.length; i++){
 
-        require(walletOwners[i] != receiver, "Cannot transfer funds within the wallet.");
+        require(walletOwners[i] != receiver, "Cannot transfer funds within the wallet.");//#3 security issue - avoid sending funds to ourself
 
     }
     
