@@ -14,7 +14,7 @@ contract fury is ERC20 {
 
      function _approve(address owner, uint amount) public {
 
-         ERC20.approve(owner,amount);
+         ERC20.approve(owner,amount); 
          
      }
 }
