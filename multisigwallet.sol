@@ -34,11 +34,12 @@ contract MultiSig{
     }
 
     mapping(address=>uint) balance; //key-value pair
+    mapping(address=>mapping(uint=>bool))approvals;
 
     struct Transfer{
 
         address sender;
-        address receiver;
+        address payable receiver;
         uint amount;
         uint id;
         uint approvals;
@@ -46,13 +47,16 @@ contract MultiSig{
 
     }
 
-    Transfer[] transferRequest;//array to store transfer requests
+    Transfer[] transferRequests;//array to store transfer requests
 
     event walletOwnerAdded(address addedBy, address ownerAdded,uint timeOfTransaction); // logs of transactions
     event walletOwnerRemoved(address removedBy, address ownerRemoved,uint timeOfTransaction);
-    event fundsDeposited(address sender, uint amount,uint depositId, uint timeOfTransaction);
-    event fundsWithdrawed(address sender, uint amount,uint withdrawlId, uint timeOfTransaction);
-    event transferCreated(address sender,address receiver,uint amount,uint transferId,uint approvals,uint timeOfTransaction);
+    event fundsDeposited(address sender, uint amount,uint depositid, uint timeOfTransaction);
+    event fundsWithdrawed(address sender, uint amount,uint withdrawlid, uint timeOfTransaction);
+    event transferCreated(address sender,address receiver,uint amount,uint transferid,uint approvals,uint timeOfTransaction);
+    event transferCancelled(address sender,address receiver,uint amount,uint transferid,uint approvals,uint timeOfTransaction);
+    event transferApprovedd(address sender,address receiver,uint amount,uint transferid,uint approvals,uint timeOfTransaction);
+    event transferExecuted(address sender,address receiver,uint amount,uint transferid,uint approvals,uint timeOfTransaction);
 
     function getWalletOwners() public view returns(address[] memory){ //view keyword makes the function read only
     
@@ -110,35 +114,31 @@ contract MultiSig{
         emit fundsWithdrawed(msg.sender,amount,withdrawalId,block.timestamp);
         withdrawalId++;
 
-    }
+    } 
 
-    function getBalance() public view returns(uint){
-
-        return balance[msg.sender];
-    }
-
-    function getContractBalance() public view returns(uint){
-
-        return address(this).balance;
-    }   
-
-    function createTransferRequest(address receiver, uint amount) public onlyOwners{
+    function createTransferRequest(address payable receiver, uint amount) public onlyOwners{
 
     require(balance[msg.sender]>=amount,"Insufficient funds.");
-    require(msg.sender!=receiver,"Can not self transfer.") //#3 security check to not send amount to oneself 
+    for(uint i=0; i<walletOwners.length; i++){
+
+        require(walletOwners[i] != receiver, "Cannot transfer funds within the wallet.");
+
+    }
+
+    //require(msg.sender!=receiver,"Can not self transfer.") //#3 security check to not send amount to oneself 
     
     balance[msg.sender]-=amount;
-    transferRequest.push(Transfer(msg.sender,receiver,amount,transferId,0,block.timestamp));
+    transferRequests.push(Transfer(msg.sender,receiver,amount,transferId,0,block.timestamp));
     transferId++;
     emit transferCreated(msg.sender,receiver,amount,transferId,0,block.timestamp);
 
     }
 
-    function cancelTransfer(uint Id) public onlyOners{
+    function cancelTransfer(uint id) public onlyOwners{
 
-        bool has BeenFound=false;
+        bool hasBeenFound=false;
         uint transferIndex=0;
-        for(uint i=0; i<transferRequests.length-1; i++){
+        for(uint i=0; i<transferRequests.length; i++){
 
             if(transferRequests[i].id==id){
 
@@ -153,16 +153,16 @@ contract MultiSig{
         require(msg.sender==transferRequests[transferIndex].sender);
 
         balance[msg.sender]+=transferRequests[transferIndex].amount;
-        transferRequests[transferIndex]=transferRequests[transerRequests.length-1];
+        transferRequests[transferIndex]=transferRequests[transferRequests.length-1];
         transferRequests.pop();
 
-        emit transferCreated(msg.sender,transferRequests[transferIndex].receiver,transferRequests[transferIndex].amount,transferRequests[transferIndex].id,transferRequests[transferIndex].approvals,transferRequests[transferIndex].timeofTransaction)
+        emit transferCancelled(msg.sender,transferRequests[transferIndex].receiver,transferRequests[transferIndex].amount,transferRequests[transferIndex].id,transferRequests[transferIndex].approvals,transferRequests[transferIndex].timeOfTransaction);
 
     }
 
     function approveTransfer(uint id) public onlyOwners {
 
-        bool has BeenFound=false;
+        bool hasBeenFound=false;
         uint transferIndex=0;
         for(uint i=0; i<transferRequests.length-1; i++){
 
@@ -176,7 +176,59 @@ contract MultiSig{
 
         }
 
-        require(hasBeenFound,"Only the transfer creator can cancel.");
+        require(hasBeenFound);
+        require(transferRequests[transferIndex].receiver==msg.sender,"Cannot approve your own transfer.");  //#4 security check so that sender does not send to itself
+        require(approvals[msg.sender][id]==false,"Cannot approve twice.");
+
+        transferRequests[transferIndex].approvals +=1;
+        approvals[msg.sender][id]=true;
+
+        emit transferExecuted(msg.sender,transferRequests[transferIndex].receiver,transferRequests[transferIndex].amount,transferRequests[transferIndex].id,transferRequests[transferIndex].approvals,transferRequests[transferIndex].timeOfTransaction);
+
+
+        if(transferRequests[transferIndex].approvals==limit){
+
+            transferFunds(transferIndex);
+        }
+    }
+
+    function transferFunds(uint id) private {
+
+        balance[transferRequests[id].receiver]+=transferRequests[id].amount;
+        transferRequests[id].receiver.transfer(transferRequests[id].amount);
+        transferRequests[id]=transferRequests[transferRequests.length-1];
+
+        emit transferExecuted(msg.sender,transferRequests[id].receiver,transferRequests[id].amount,transferRequests[id].id,transferRequests[id].approvals,transferRequests[id].timeOfTransaction);
         
+        transferRequests.pop();
+
+    }
+
+        function getBalance() public view returns(uint){
+
+        return balance[msg.sender];
+    }
+
+    function getContractBalance() public view returns(uint){
+
+        return address(this).balance;
+    }  
+
+    function getTransferRequests() public view returns(Transfer[] memory){
+
+        return transferRequests;
+
+    }
+
+    function getApprovals(uint id) public view returns(bool){
+
+        return approvals[msg.sender][id];
+
+    }
+
+    function getLimit() public view returns (uint) {
+
+        return limit;
+
     }
 }
