@@ -122,7 +122,7 @@ contract MultiSig{
         return address(this).balance;
     }   
 
-    function createTrnsferRequest(address receiver, uint amount) public onlyOwners{
+    function createTransferRequest(address receiver, uint amount) public onlyOwners{
 
     require(balance[msg.sender]>=amount,"Insufficient funds.");
     require(msg.sender!=receiver,"Can not self transfer.") //#3 security check to not send amount to oneself 
@@ -134,5 +134,49 @@ contract MultiSig{
 
     }
 
+    function cancelTransfer(uint Id) public onlyOners{
 
+        bool has BeenFound=false;
+        uint transferIndex=0;
+        for(uint i=0; i<transferRequests.length-1; i++){
+
+            if(transferRequests[i].id==id){
+
+                hasBeenFound=true;
+                break;
+            }
+
+            transferIndex++;
+        }
+
+        require(hasBeenFound,"Transfer id not found.");
+        require(msg.sender==transferRequests[transferIndex].sender);
+
+        balance[msg.sender]+=transferRequests[transferIndex].amount;
+        transferRequests[transferIndex]=transferRequests[transerRequests.length-1];
+        transferRequests.pop();
+
+        emit transferCreated(msg.sender,transferRequests[transferIndex].receiver,transferRequests[transferIndex].amount,transferRequests[transferIndex].id,transferRequests[transferIndex].approvals,transferRequests[transferIndex].timeofTransaction)
+
+    }
+
+    function approveTransfer(uint id) public onlyOwners {
+
+        bool has BeenFound=false;
+        uint transferIndex=0;
+        for(uint i=0; i<transferRequests.length-1; i++){
+
+            if(transferRequests[i].id==id){
+
+                hasBeenFound=true;
+                break;
+            }
+
+            transferIndex++;
+
+        }
+
+        require(hasBeenFound,"Only the transfer creator can cancel.");
+        
+    }
 }
