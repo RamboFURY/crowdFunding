@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: RamboFURY
 
 pragma solidity 0.8.7; //default version of solidity selected as in remix ide
 
@@ -19,21 +19,8 @@ contract MultiSig{
 
     }
 
-    modifier onlyOwners(){ //modifier is used to reduce recurring code snippets
-
-        bool isOwner=false;
-        for(uint i=0; i<walletOwners.length; i++){ //#1 security issue - only existing owners should call this function not anyone from outside
-            if(walletOwners[i]==msg.sender){
-                isOwner=true;
-                break;
-            }
-        }
-
-        require(isOwner==true,"Only wallet owners can call this function.");
-        _;
-    }
-
-    mapping(address=>uint) balance; //key-value pair
+    //key-value pairs
+    mapping(address=>uint) balance;
     mapping(address=>mapping(uint=>bool))approvals;
 
     struct Transfer{
@@ -49,14 +36,29 @@ contract MultiSig{
 
     Transfer[] transferRequests;//array to store transfer requests
 
-    event walletOwnerAdded(address addedBy, address ownerAdded,uint timeOfTransaction); // logs of transactions
+    // logs of transactions
+    event walletOwnerAdded(address addedBy, address ownerAdded,uint timeOfTransaction);
     event walletOwnerRemoved(address removedBy, address ownerRemoved,uint timeOfTransaction);
     event fundsDeposited(address sender, uint amount,uint depositid, uint timeOfTransaction);
     event fundsWithdrawed(address sender, uint amount,uint withdrawlid, uint timeOfTransaction);
     event transferCreated(address sender,address receiver,uint amount,uint transferid,uint approvals,uint timeOfTransaction);
     event transferCancelled(address sender,address receiver,uint amount,uint transferid,uint approvals,uint timeOfTransaction);
-    event transferApprovedd(address sender,address receiver,uint amount,uint transferid,uint approvals,uint timeOfTransaction);
-    event transferExecuted(address sender,address receiver,uint amount,uint transferid,uint approvals,uint timeOfTransaction);
+    event transferApproved(address sender,address receiver,uint amount,uint transferid,uint approvals,uint timeOfTransaction);
+    event fundsTransferred(address sender,address receiver,uint amount,uint transferid,uint approvals,uint timeOfTransaction);
+
+    modifier onlyOwners(){ //modifier is used to reduce recurring code snippets
+
+        bool isOwner=false;
+        for(uint i=0; i<walletOwners.length; i++){ //#1 security issue - only existing owners should call this function not anyone from outside
+            if(walletOwners[i]==msg.sender){
+                isOwner=true;
+                break;
+            }
+        }
+
+        require(isOwner==true,"Only wallet owners can call this function.");
+        _;
+    }
 
     function getWalletOwners() public view returns(address[] memory){ //view keyword makes the function read only
     
@@ -76,6 +78,7 @@ contract MultiSig{
 
         walletOwners.push(owner); //to add a new owner
         limit = walletOwners.length - 1;
+
         emit walletOwnerAdded(msg.sender,owner,block.timestamp);
     }
 
@@ -124,8 +127,6 @@ contract MultiSig{
         require(walletOwners[i] != receiver, "Cannot transfer funds within the wallet.");
 
     }
-
-    //require(msg.sender!=receiver,"Can not self transfer.") //#3 security check to not send amount to oneself 
     
     balance[msg.sender]-=amount;
     transferRequests.push(Transfer(msg.sender,receiver,amount,transferId,0,block.timestamp));
@@ -134,7 +135,7 @@ contract MultiSig{
 
     }
 
-    function cancelTransfer(uint id) public onlyOwners{
+    function cancelTransferRequest(uint id) public onlyOwners{
 
         bool hasBeenFound=false;
         uint transferIndex=0;
@@ -160,7 +161,7 @@ contract MultiSig{
 
     }
 
-    function approveTransfer(uint id) public onlyOwners {
+    function approveTransferRequest(uint id) public onlyOwners {
 
         bool hasBeenFound=false;
         uint transferIndex=0;
@@ -183,7 +184,7 @@ contract MultiSig{
         transferRequests[transferIndex].approvals +=1;
         approvals[msg.sender][id]=true;
 
-        emit transferExecuted(msg.sender,transferRequests[transferIndex].receiver,transferRequests[transferIndex].amount,transferRequests[transferIndex].id,transferRequests[transferIndex].approvals,transferRequests[transferIndex].timeOfTransaction);
+        emit transferApproved(msg.sender,transferRequests[transferIndex].receiver,transferRequests[transferIndex].amount,transferRequests[transferIndex].id,transferRequests[transferIndex].approvals,transferRequests[transferIndex].timeOfTransaction);
 
 
         if(transferRequests[transferIndex].approvals==limit){
@@ -196,27 +197,11 @@ contract MultiSig{
 
         balance[transferRequests[id].receiver]+=transferRequests[id].amount;
         transferRequests[id].receiver.transfer(transferRequests[id].amount);
-        transferRequests[id]=transferRequests[transferRequests.length-1];
 
-        emit transferExecuted(msg.sender,transferRequests[id].receiver,transferRequests[id].amount,transferRequests[id].id,transferRequests[id].approvals,transferRequests[id].timeOfTransaction);
+        emit fundsTransferred(msg.sender,transferRequests[id].receiver,transferRequests[id].amount,transferRequests[id].id,transferRequests[id].approvals,transferRequests[id].timeOfTransaction);
         
+        transferRequests[id]=transferRequests[transferRequests.length-1];
         transferRequests.pop();
-
-    }
-
-        function getBalance() public view returns(uint){
-
-        return balance[msg.sender];
-    }
-
-    function getContractBalance() public view returns(uint){
-
-        return address(this).balance;
-    }  
-
-    function getTransferRequests() public view returns(Transfer[] memory){
-
-        return transferRequests;
 
     }
 
@@ -226,10 +211,25 @@ contract MultiSig{
 
     }
 
-    function getLimit() public view returns (uint) {
+    function getTransferRequests() public view returns(Transfer[] memory){
+
+        return transferRequests;
+
+    }
+
+    function getBalance() public view returns(uint){
+
+        return balance[msg.sender];
+    }
+
+    function getApprovalLimit() public view returns (uint) {
 
         return limit;
 
     }
-    
+
+    function getContractBalance() public view returns(uint){
+
+        return address(this).balance;
+    } 
 }
