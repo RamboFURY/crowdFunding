@@ -2,6 +2,9 @@
 
 pragma solidity 0.8.7; //default version of solidity selected as in remix ide
 
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC20/ERC20.sol";
+import "https://github.com/OpenZeppelin/openzeppelin-contracts/blob/master/contracts/token/ERC20/IERC20.sol";
+
 contract MultiSig {
 
     address mainOwner;
@@ -33,7 +36,7 @@ contract MultiSig {
     }
 
     struct Transfer {
-
+        string symbol;
         address sender;
         address payable receiver;
         uint amount;
@@ -48,12 +51,13 @@ contract MultiSig {
     // logs of transactions
     event walletOwnerAdded(address addedBy, address ownerAdded,uint timeOfTransaction);
     event walletOwnerRemoved(address removedBy, address ownerRemoved,uint timeOfTransaction);
-    event fundsDeposited(address sender, uint amount,uint depositid, uint timeOfTransaction);
-    event fundsWithdrawed(address sender, uint amount,uint withdrawlid, uint timeOfTransaction);
-    event transferCreated(address sender,address receiver,uint amount,uint transferid,uint approvals,uint timeOfTransaction);
-    event transferCancelled(address sender,address receiver,uint amount,uint transferid,uint approvals,uint timeOfTransaction);
-    event transferApproved(address sender,address receiver,uint amount,uint transferid,uint approvals,uint timeOfTransaction);
-    event fundsTransferred(address sender,address receiver,uint amount,uint transferid,uint approvals,uint timeOfTransaction);
+    event fundsDeposited(string symbol,address sender, uint amount,uint depositid, uint timeOfTransaction);
+    event fundsWithdrawed(string symbol,address sender, uint amount,uint withdrawlid, uint timeOfTransaction);
+    event transferCreated(string symbol,address sender,address receiver,uint amount,uint transferid,uint approvals,uint timeOfTransaction);
+    event transferCancelled(string symbol,address sender,address receiver,uint amount,uint transferid,uint approvals,uint timeOfTransaction);
+    event transferApproved(string symbol,address sender,address receiver,uint amount,uint transferid,uint approvals,uint timeOfTransaction);
+    event fundsTransferred(string symbol,address sender,address receiver,uint amount,uint transferid,uint approvals,uint timeOfTransaction);
+    event tokenAdded(address addedBy,string symbol,address tokenAddress, uint timeOfTransaction);
 
     modifier onlyOwners() { //modifier is used to reduce recurring code snippets
 
@@ -67,6 +71,29 @@ contract MultiSig {
 
         require(isOwner==true,"Only wallet owners can call this function.");
         _;
+    }
+
+    modifier tokenExists(string memory symbol) {
+
+        require(tokenMapping[symbol].tokenAddress != address(0),"Token does not exists.");
+        _;
+
+    }
+
+    function addToken(string memory symbol,address _tokenAddress) public onlyOwners {
+
+        for(uint i=0; i<tokenList.length; i++) {
+
+            require(keccak256(bytes(tokenList[i]))!=keccak256(bytes(symbol)),"Cannot add a duplicate token.");
+        }
+        
+        require(keccak256(bytes(ERC20(_tokenAddress).symbol()))==keccak256(bytes(symbol)));
+
+        tokenMapping[symbol]=Token(symbol,_tokenAddress);
+
+        tokenList.push(symbol);
+
+        emit tokenAdded(msg.sender,symbol,_tokenAddress,block.timestamp);
     }
 
     function addWalletOwner(address owner) public onlyOwners {
@@ -103,42 +130,67 @@ contract MultiSig {
         emit walletOwnerRemoved(msg.sender,owner,block.timestamp);
     }
 
-    function deposit() public payable onlyOwners {
+    function deposit(string memory symbol,uint amount) public payable onlyOwners tokenExists(symbol) {
 
-        require(balance[msg.sender]>=0,"Can not deposit a value 0 or less.");
-        balance[msg.sender]=msg.value;
-        emit fundsDeposited(msg.sender,msg.value,depositId,block.timestamp);
-        depositId++;
+        require(balance[msg.sender][symbol]>=0,"Can not deposit a value 0 or less."); //depositable ethereum function as well as ERC 20
+
+        if(keccak256(bytes(symbol))==keccak256(bytes("ETH"))) {
+        
+        balance[msg.sender]["ETH"]=msg.value;
+    }  
+
+    else {
+
+        require(tokenMapping[symbol].tokenAddress != address(0),"Token does not exists.");
+        balance[msg.sender][symbol]+=amount;
+        IERC20(tokenMapping[symbol].tokenAddress).transferFrom(msg.sender,address(this),amount);
+
+    }
+       emit fundsDeposited("ETH",msg.sender,msg.value,depositId,block.timestamp);
+       depositId++;
         
     }
 
-    function withdraw(uint amount) public onlyOwners {
+    function withdraw(string memory symbol,uint amount) public onlyOwners {
 
-        require(balance[msg.sender]>=amount);
-        balance[msg.sender]-=amount;
-        payable(msg.sender).transfer(amount);
-        emit fundsWithdrawed(msg.sender,amount,withdrawalId,block.timestamp);
+        require(balance[msg.sender][symbol]>=amount);
+        balance[msg.sender][symbol]-=amount;
+
+        if(keccak256(bytes(symbol))==keccak256(bytes("ETH"))) { //to check if we are dealing with ether
+
+        payable(msg.sender).transfer(amount); //if not ether this occurs
+        emit fundsWithdrawed("ETH",msg.sender,amount,withdrawalId,block.timestamp);
+      
+    } 
+    
+    else {
+
+        require(tokenMapping[symbol].tokenAddress != address(0),"Token does not exists.");
+        IERC20(tokenMapping[symbol].tokenAddress).transfer(msg.sender,amount);
+    }
+        
+        emit fundsWithdrawed(symbol,msg.sender,amount,withdrawalId,block.timestamp);
         withdrawalId++;
 
     } 
 
-    function createTransferRequest(address payable receiver, uint amount) public onlyOwners {
+    function createTransferRequest(string memory symbol,address payable receiver, uint amount) public onlyOwners {
 
-    require(balance[msg.sender]>=amount,"Insufficient funds.");
+    require(balance[msg.sender][symbol]>=amount,"Insufficient funds.");
     for(uint i=0; i<walletOwners.length; i++){
 
         require(walletOwners[i] != receiver, "Cannot transfer funds within the wallet.");//#3 security issue - avoid sending funds to ourself
 
     }
     
-    balance[msg.sender]-=amount;
-    transferRequests.push(Transfer(msg.sender,receiver,amount,transferId,0,block.timestamp));
+    balance[msg.sender][symbol]-=amount;
+    transferRequests.push(Transfer(symbol,msg.sender,receiver,amount,transferId,0,block.timestamp));
     transferId++;
-    emit transferCreated(msg.sender,receiver,amount,transferId,0,block.timestamp);
+    emit transferCreated(symbol,msg.sender,receiver,amount,transferId,0,block.timestamp);
 
     }
 
-    function cancelTransferRequest(uint id) public onlyOwners {
+    function cancelTransferRequest(string memory symbol,uint id) public onlyOwners {
 
         bool hasBeenFound=false;
         uint transferIndex=0;
@@ -156,15 +208,15 @@ contract MultiSig {
         require(hasBeenFound,"Transfer id not found.");
         require(msg.sender==transferRequests[transferIndex].sender);
 
-        balance[msg.sender]+=transferRequests[transferIndex].amount;
+        balance[msg.sender][symbol]+=transferRequests[transferIndex].amount;
         transferRequests[transferIndex]=transferRequests[transferRequests.length-1];
         transferRequests.pop();
 
-        emit transferCancelled(msg.sender,transferRequests[transferIndex].receiver,transferRequests[transferIndex].amount,transferRequests[transferIndex].id,transferRequests[transferIndex].approvals,transferRequests[transferIndex].timeOfTransaction);
+        emit transferCancelled(symbol,msg.sender,transferRequests[transferIndex].receiver,transferRequests[transferIndex].amount,transferRequests[transferIndex].id,transferRequests[transferIndex].approvals,transferRequests[transferIndex].timeOfTransaction);
 
     }
 
-    function approveTransferRequest(uint id) public onlyOwners {
+    function approveTransferRequest(string memory symbol,uint id) public onlyOwners {
 
         bool hasBeenFound=false;
         uint transferIndex=0;
@@ -187,21 +239,31 @@ contract MultiSig {
         transferRequests[transferIndex].approvals +=1;
         approvals[msg.sender][id]=true;
 
-        emit transferApproved(msg.sender,transferRequests[transferIndex].receiver,transferRequests[transferIndex].amount,transferRequests[transferIndex].id,transferRequests[transferIndex].approvals,transferRequests[transferIndex].timeOfTransaction);
+        emit transferApproved(symbol,msg.sender,transferRequests[transferIndex].receiver,transferRequests[transferIndex].amount,transferRequests[transferIndex].id,transferRequests[transferIndex].approvals,transferRequests[transferIndex].timeOfTransaction);
 
 
         if(transferRequests[transferIndex].approvals==limit){
 
-            transferFunds(transferIndex);
+            transferFunds(symbol,transferIndex);
         }
     }
 
-    function transferFunds(uint id) private {
+    function transferFunds(string memory symbol,uint id) private {
 
-        balance[transferRequests[id].receiver]+=transferRequests[id].amount;
-        transferRequests[id].receiver.transfer(transferRequests[id].amount);
+        balance[transferRequests[id].receiver][symbol]+=transferRequests[id].amount;
+        if(keccak256(bytes(symbol))==keccak256(bytes("ETH"))) {
 
-        emit fundsTransferred(msg.sender,transferRequests[id].receiver,transferRequests[id].amount,transferRequests[id].id,transferRequests[id].approvals,transferRequests[id].timeOfTransaction);
+            transferRequests[id].receiver.transfer(transferRequests[id].amount);
+
+        }
+
+        else {
+
+            IERC20(tokenMapping[symbol].tokenAddress).transfer(transferRequests[id].receiver,transferRequests[id].amount);
+           
+        }
+        
+        emit fundsTransferred(symbol,msg.sender,transferRequests[id].receiver,transferRequests[id].amount,transferRequests[id].id,transferRequests[id].approvals,transferRequests[id].timeOfTransaction);
         
         transferRequests[id]=transferRequests[transferRequests.length-1];
         transferRequests.pop();
@@ -226,9 +288,9 @@ contract MultiSig {
 
     }
 
-    function getBalance() public view returns(uint) {
+    function getBalance(string memory symbol) public view returns(uint) {
 
-        return balance[msg.sender];
+        return balance[msg.sender][symbol];
     }
 
     function getApprovalLimit() public view returns (uint) {
