@@ -127,6 +127,7 @@ contract MultiSig {
         require(hasBeenFound==true,"Wallet owner not detected.");
         walletOwners[ownerIndex] = walletOwners[walletOwners.length-1];
         walletOwners.pop(); //solidity allows deletion in an array by moving the element to the last index and then remove
+        limit=walletOwners.length-1;
         emit walletOwnerRemoved(msg.sender,owner,block.timestamp);
     }
 
@@ -159,7 +160,6 @@ contract MultiSig {
         if(keccak256(bytes(symbol))==keccak256(bytes("ETH"))) { //to check if we are dealing with ether
 
         payable(msg.sender).transfer(amount); //if not ether this occurs
-        emit fundsWithdrawed("ETH",msg.sender,amount,withdrawalId,block.timestamp);
       
     } 
     
@@ -192,6 +192,7 @@ contract MultiSig {
 
     function cancelTransferRequest(string memory symbol,uint id) public onlyOwners {
 
+        string memory symbol=transferRequests[id].symbol;
         bool hasBeenFound=false;
         uint transferIndex=0;
         for(uint i=0; i<transferRequests.length; i++){
@@ -210,14 +211,15 @@ contract MultiSig {
 
         balance[msg.sender][symbol]+=transferRequests[transferIndex].amount;
         transferRequests[transferIndex]=transferRequests[transferRequests.length-1];
-        transferRequests.pop();
 
         emit transferCancelled(symbol,msg.sender,transferRequests[transferIndex].receiver,transferRequests[transferIndex].amount,transferRequests[transferIndex].id,transferRequests[transferIndex].approvals,transferRequests[transferIndex].timeOfTransaction);
+        transferRequests.pop();
 
     }
 
     function approveTransferRequest(string memory symbol,uint id) public onlyOwners {
 
+        string memory symbol=transferRequests[id].symbol;
         bool hasBeenFound=false;
         uint transferIndex=0;
         for(uint i=0; i<transferRequests.length-1; i++){
