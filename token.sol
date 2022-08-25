@@ -8,13 +8,8 @@ contract Link is ERC20 {
      
      constructor() ERC20("chainlink","LINK") {
 
-         _mint(msg.sender,10000000000000000000000);
+         _mint(msg.sender,100000000000000000000000000);
 
      }
 
-     function _approve(address owner, uint amount) public {
-
-         ERC20.approve(owner,amount); 
-         
-     }
 }
