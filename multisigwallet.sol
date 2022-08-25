@@ -14,6 +14,7 @@ contract MultiSig {
     uint withdrawalId = 0;
     uint transferId =0;
     string[] tokenList;
+    address multisigInstance;
 
     constructor() {
 
@@ -96,7 +97,27 @@ contract MultiSig {
         emit tokenAdded(msg.sender,symbol,_tokenAddress,block.timestamp);
     }
 
-    function addWalletOwner(address owner) public onlyOwners {
+    function setMultisigContractaddress(address walletAddress) private {
+
+        multisigInstance=walletAddress;
+
+    }
+
+    function callAddOwner(address owner,address multiSigContractInstance) private {
+
+        MultiSigFactory factory=MultiSigFactory(multisigInstance);
+        factory.addNewWalletInstance(owner,multiSigContractInstance);
+
+    }
+
+    function callremoveOwner(address owner,address multiSigContractInstance) private {
+
+        MultiSigFactory factory=MultiSigFactory(multisigInstance);
+        factory.removeNewWalletInstance(owner,multiSigContractInstance);
+
+    }
+
+    function addWalletOwner(address owner,address walletAddress,address _address) public onlyOwners {
 
         for(uint i=0; i<walletOwners.length; i++) //#2 security issue - remove duplicacy of owners
         {
@@ -110,9 +131,11 @@ contract MultiSig {
         limit = walletOwners.length - 1;
 
         emit walletOwnerAdded(msg.sender,owner,block.timestamp);
+        setMultisigContractaddress(walletAddress);
+        callAddOwner(owner,_address);
     }
 
-    function removeWalletOwner(address owner) public onlyOwners {
+    function removeWalletOwner(address owner,address walletAddress,address _address) public onlyOwners {
         
         bool hasBeenFound=false;
         uint ownerIndex;
@@ -129,6 +152,9 @@ contract MultiSig {
         walletOwners.pop(); //solidity allows deletion in an array by moving the element to the last index and then remove
         limit=walletOwners.length-1;
         emit walletOwnerRemoved(msg.sender,owner,block.timestamp);
+
+        setMultisigContractaddress(walletAddress);
+        callremoveOwner(owner,_address);
     }
 
     function deposit(string memory symbol,uint amount) public payable onlyOwners tokenExists(symbol) {
@@ -301,8 +327,90 @@ contract MultiSig {
 
     }
 
-    function getContractBalance() public view returns(uint) {
+    function getContractETHBalance() public view returns(uint) {
 
         return address(this).balance;
     } 
+
+    function getTokenList() public view returns(string[] memory) {
+        
+        return tokenList;
+
+    }
+
+    function getContractERC20Balance(string memory symbol) public view tokenExists(symbol) returns(uint) {
+        
+        return balance[address(this)][symbol];
+
+    }
+
+}
+
+    contract MultiSigFactory {
+    
+    struct UserWallets{
+        
+        address walletAddress;
+
+    }
+    
+    UserWallets[] userWallets;
+    MultiSig[] multisigWalletIntances;
+    
+    mapping(address => UserWallets[]) ownersWallets;
+    
+    event WalletCreated(address createdBy, address newWalletContractAddress, uint timeOfTransaction);
+    
+    
+    function createNewWallet() public {
+        
+        MultiSig newMultisigWalletContract = new MultiSig();
+        multisigWalletIntances.push(newMultisigWalletContract);
+        
+        UserWallets[] storage newWallet = ownersWallets[msg.sender];
+        newWallet.push(UserWallets(address(newMultisigWalletContract)));
+        
+        emit WalletCreated(msg.sender, address(newMultisigWalletContract), block.timestamp);
+
+    }
+    
+    
+    function addNewWalletInstance(address owner, address walletAddress) public {
+        
+        UserWallets[] storage newWallet = ownersWallets[owner];
+        newWallet.push(UserWallets(walletAddress));
+        
+    }
+    
+    function removeNewWalletInstance(address _owner, address _walletAddress) public {
+        
+        UserWallets[] storage newWallet = ownersWallets[_owner];
+        
+        bool hasBeenFound = false;
+        uint walletIndex;
+        for (uint i = 0; i < newWallet.length; i++) {
+            
+            if(newWallet[i].walletAddress == _walletAddress) {
+                
+                hasBeenFound = true;
+                walletIndex = i;
+                break;
+
+            }
+            
+        }
+        
+        require(hasBeenFound, "the owners does not own the wallet specified");
+        
+        newWallet[walletIndex] = newWallet[newWallet.length - 1];
+        newWallet.pop();
+        
+       }
+    
+    function getOwnerWallets(address owner) public view returns(UserWallets[] memory) {
+        
+        return ownersWallets[owner];
+
+    }
+    
 }
