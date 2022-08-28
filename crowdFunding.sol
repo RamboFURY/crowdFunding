@@ -68,14 +68,14 @@ contract crowdFunding {
         
     }
 
-    modifier onlyManger() {
+    modifier a() {
 
         require(msg.sender==manager,"Only manager can calll this function");
         _;
 
     }
 
-    function createRequests(string memory _description,address payable _recipient,uint _value) public onlyManger {
+    function createRequests(string memory _description,address payable _recipient,uint _value) public a {
 
         Request storage newRequest = requests[numRequests];
         numRequests++;
@@ -97,7 +97,7 @@ contract crowdFunding {
 
     }
 
-    function makePayment(uint _requestNo) public onlyManger {
+    function makePayment(uint _requestNo) public onlyManager {
 
         require(raisedAmount>=target);
         Request storage thisRequest=requests[_requestNo];
