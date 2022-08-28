@@ -1,11 +1,11 @@
 //SPDX-License-Identifier: RamboFURY
 
-pragma solidity >=0.5.0 < 0.9.0;
+pragma solidity 0.8.7; //default version of solidity selected as in remix ide
 
 contract crowdFunding {
 
     mapping(address=>uint) public contributors; //contributors[msg.sender]=100
-    address public manager; 
+    address public manager;
     uint public minimumContribution;
     uint public deadline;
     uint public target;
@@ -23,13 +23,13 @@ contract crowdFunding {
 
     }
 
-    mapping(uint=>Request) public requests;
+    mapping(uint=>Request) public requests; //key-value pairs
     uint public numRequests;
 
     constructor(uint _target,uint _deadline) {
 
         target=_target;
-        deadline=block.timestamp+_deadline; //10sec + 3600sec (60*60)
+        deadline=block.timestamp+_deadline; //10 sec + 3600 sec (60*60)
         minimumContribution=100 wei;
         manager=msg.sender;
         
@@ -37,8 +37,8 @@ contract crowdFunding {
     
     function sendEth() public payable {
 
-        require(block.timestamp < deadline,"Deadline has passed");
-        require(msg.value >=minimumContribution,"Minimum Contribution is not met");
+        require(block.timestamp<deadline,"Deadline has passed"); //security check #1
+        require(msg.value>=minimumContribution,"Minimum Contribution is not met"); //security check #2
         
         if(contributors[msg.sender]==0) {
 
@@ -59,7 +59,7 @@ contract crowdFunding {
 
     function refund() public {
 
-        require(block.timestamp>deadline && raisedAmount<target,"You are not eligible for refund");
+        require(block.timestamp>deadline && raisedAmount<target,"You are not eligible for a refund."); //security check #3
         require(contributors[msg.sender]>0);
         address payable user=payable(msg.sender);
         user.transfer(contributors[msg.sender]);
@@ -68,16 +68,16 @@ contract crowdFunding {
         
     }
 
-    modifier a() {
+    modifier onlyManager() {
 
-        require(msg.sender==manager,"Only manager can calll this function");
+        require(msg.sender==manager,"Only manager can call this function.");
         _;
 
     }
 
-    function createRequests(string memory _description,address payable _recipient,uint _value) public a {
+    function createRequests(string memory _description, address payable _recipient, uint _value) public onlyManager {
 
-        Request storage newRequest = requests[numRequests];
+        Request storage newRequest=requests[numRequests];
         numRequests++;
         newRequest.description=_description;
         newRequest.recipient=_recipient;
@@ -89,9 +89,9 @@ contract crowdFunding {
 
     function voteRequest(uint _requestNo) public {
 
-        require(contributors[msg.sender]>0,"YOu must be contributor");
+        require(contributors[msg.sender]>0,"You must be contributor."); //security check #4
         Request storage thisRequest=requests[_requestNo];
-        require(thisRequest.voters[msg.sender]==false,"You have already voted");
+        require(thisRequest.voters[msg.sender]==false,"You have already voted.");
         thisRequest.voters[msg.sender]=true;
         thisRequest.noOfVoters++;
 
@@ -101,10 +101,11 @@ contract crowdFunding {
 
         require(raisedAmount>=target);
         Request storage thisRequest=requests[_requestNo];
-        require(thisRequest.completed==false,"The request has been completed");
-        require(thisRequest.noOfVoters > noOfContributors/2,"Majority does not support");
+        require(thisRequest.completed==false,"The request has been completed.");
+        require(thisRequest.noOfVoters>noOfContributors/2,"Majority does not support.");
         thisRequest.recipient.transfer(thisRequest.value);
         thisRequest.completed=true;
 
     }
+    
 }
